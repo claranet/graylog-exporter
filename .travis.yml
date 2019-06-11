@@ -5,10 +5,6 @@ services:
 go:
 - master
 
-branches:
-  only:
-  - /^v\d+\.\d+\.\d+$/
-
 jobs:
   include:
     
@@ -16,7 +12,8 @@ jobs:
       script:
         - go get github.com/mitchellh/gox
         - go get -d
-        - gox -os="linux darwin windows" -arch="amd64" -verbose -output="bin/{{.Dir}}_{{.OS}}_{{.Arch}}"
+        - gox -os="linux" -arch="amd64" -verbose -output="bin/{{.Dir}}_{{.OS}}_{{.Arch}}"
+
       deploy:
         provider: releases
         skip_cleanup: true
@@ -26,6 +23,9 @@ jobs:
         file: bin/*
         on:
           tags: true
+      branches:
+        only:
+          - /^v\d+\.\d+\.\d+$/
     - name: Build and deploy docker image
       script:
         - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
@@ -33,3 +33,6 @@ jobs:
         - docker tag claranet/graylog-exporter claranet/graylog-exporter:$TRAVIS_BRANCH
         - docker push claranet/graylog-exporter
         - docker push claranet/graylog-exporter:$TRAVIS_BRANCH
+      branches:
+        only:
+          - /^v\d+\.\d+\.\d+$/
