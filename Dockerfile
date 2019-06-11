@@ -12,7 +12,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w'
 FROM quay.io/prometheus/busybox:latest
 
 LABEL maintainer "Martin Weber <martin.weber@de.clara.net>"
-LABEL version "0.1.1"
+LABEL version "0.2.0"
 
 COPY --from=builder /go/src/graylog-exporter/graylog-exporter /usr/local/bin/graylog-exporter
 

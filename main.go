@@ -5,7 +5,7 @@
 //
 // Author: Martin Weber <martin.weber@de.clara.net>
 // Company: Claranet GmbH
-// Version: 0.1.1
+// Version: 0.2.0
 //
 
 package main
