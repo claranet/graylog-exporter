@@ -1,24 +1,21 @@
-
 //
 // graylog-exporter
 //
-// Prometheus Exportewr for Zerto API
+// Prometheus Exporter for Graylog API
 //
 // Author: Martin Weber <martin.weber@de.clara.net>
 // Company: Claranet GmbH
+// Version: 0.1.1
 //
 
 package main
 
 import (
-	"github.com/claranet/graylog-exporter/graylog"
+	"./graylog"
 
 	"flag"
 	"net/http"
 	"strings"
-//	"time"
-//	"regexp"
-//	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/log"
@@ -27,53 +24,57 @@ import (
 var defaultMetrics = "jvm.memory.total.max,jvm.memory.total.used,jvm.memory.total.init,org.graylog2.throughput.output,org.graylog2.throughput.input,org.graylog2.throughput.input.1-sec-rate,org.graylog2.throughput.output.1-sec-rate,org.graylog2.journal.entries-uncommitted"
 
 var (
-	namespace		= "graylog"
-	graylogUrl		= flag.String("graylog.url", "", "Graylog URL to connect to API https://graylog.local.host:9000")
-	graylogUser		= flag.String("graylog.username", "", "Graylog API User")
-	graylogPassword		= flag.String("graylog.password", "", "Graylog API User Password")
-	listenAddress		= flag.String("listen-address", ":9404", "The address to lisiten on for HTTP requests.")
-	graylogMetrics		= flag.String("graylog.metrics", defaultMetrics, "Graylog metrics to export")
+	namespace       = "graylog"
+	graylogUrl      = flag.String("graylog.url", "", "Graylog URL to connect to API https://graylog.local.host:9000")
+	graylogUser     = flag.String("graylog.username", "", "Graylog API User")
+	graylogPassword = flag.String("graylog.password", "", "Graylog API User Password")
+	listenAddress   = flag.String("listen-address", ":9404", "The address to lisiten on for HTTP requests.")
+	graylogMetrics  = flag.String("graylog.metrics", defaultMetrics, "Graylog metrics to export")
 )
 
 var (
-	// Zerto API
-	graylogApi		*graylog.Graylog
+	graylogApi *graylog.Graylog
 	// Current Session Age
 //	graylogSessionAge		int64		= 0
 )
 
 type Exporter struct {
-	CountNodes			*prometheus.GaugeVec
-	MessageThroughput		*prometheus.GaugeVec
-	JournalReadEventsPerSecond	*prometheus.GaugeVec
-	JournalUncomittedEntries	*prometheus.GaugeVec
-        ClusterNodeMetric		*prometheus.GaugeVec
+	CountNodes                 *prometheus.GaugeVec
+	MessageThroughput          *prometheus.GaugeVec
+	JournalReadEventsPerSecond *prometheus.GaugeVec
+	JournalUncomittedEntries   *prometheus.GaugeVec
+	ClusterNodeMetric          *prometheus.GaugeVec
+	SystemMetric               *prometheus.GaugeVec
 }
 
 func NewExporter() *Exporter {
-	defaultLabels := []string {"hostname"}
+	defaultLabels := []string{"hostname"}
 
 	return &Exporter{
 		CountNodes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace, Name: "count_nodes",
 			Help: "Count Nodes in Graylog Cluster",
-		}, []string{}, ),
+		}, []string{}),
 		MessageThroughput: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace, Name: "message_throughput",
 			Help: "Message Throughput of current node",
-		}, defaultLabels, ),
+		}, defaultLabels),
 		JournalReadEventsPerSecond: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace, Name: "journal_read_events",
 			Help: "Journal Read Events per second",
-		}, defaultLabels, ),
+		}, defaultLabels),
 		JournalUncomittedEntries: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace, Name: "journal_uncommitted_entries",
 			Help: "Uncommited entries of Jouranl",
-		}, defaultLabels, ),
+		}, defaultLabels),
 		ClusterNodeMetric: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace, Name: "cluster_node_metric",
 			Help: "Cluster Node Metrics",
-		}, []string { "hostname", "metric" } ),
+		}, []string{"hostname", "metric"}),
+		SystemMetric: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace, Name: "system_metric",
+			Help: "System Metrics",
+		}, []string{"metric"}),
 	}
 }
 
@@ -83,8 +84,8 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	e.JournalReadEventsPerSecond.Describe(ch)
 	e.JournalUncomittedEntries.Describe(ch)
 	e.ClusterNodeMetric.Describe(ch)
+	e.SystemMetric.Describe(ch)
 }
-
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
@@ -96,9 +97,8 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	var nodeMetrics = strings.Split(*graylogMetrics, ",")
-	for i:=0;i<len(nodes.Nodes);i++ {
+	for i := 0; i < len(nodes.Nodes); i++ {
 		node := nodes.Nodes[i]
-//		api := graylog.NewGraylog(node.TransportAddress, *graylogUser, *graylogPassword)
 
 		{
 			tput := graylogApi.GetSystemThroughput()
@@ -120,11 +120,13 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 		}
 
-
 		metricValues := graylogApi.GetClusterNodeMetrics(node.NodeId, nodeMetrics)
-		for i:=0;i<metricValues.Total;i++ {
+		log.Info(metricValues.Total)
+
+		for i := 0; i < metricValues.Total; i++ {
 			m := metricValues.Metrics[i]
 			g := e.ClusterNodeMetric.WithLabelValues(node.Hostname, m.FullName)
+
 			if m.Type == "counter" {
 				g.Set(float64(m.Metric.Count))
 			} else {
@@ -132,6 +134,14 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			}
 			g.Collect(ch)
 		}
+	}
+
+	systemMetrics := graylogApi.GetSystemMetrics()
+	for metric := range systemMetrics.Gauges {
+		value := systemMetrics.Gauges[metric].Value
+		g := e.SystemMetric.WithLabelValues(metric)
+		g.Set(value)
+		g.Collect(ch)
 	}
 
 }
