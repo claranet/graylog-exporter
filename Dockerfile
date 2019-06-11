@@ -1,11 +1,4 @@
-# Dockerfile builds an image for a client_golang example.
-#
-# Use as (from the root for the client_golang repository):
-#    docker build -f examples/$name/Dockerfile -t prometheus/golang-example-$name .
-
-# Builder image, where we build the example.
-
-FROM golang:1.9.0 AS builder
+FROM golang:1.12 AS builder
 
 ENV GOPATH /go/src/graylog-exporter
 
@@ -19,8 +12,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w'
 FROM quay.io/prometheus/busybox:latest
 
 LABEL maintainer "Martin Weber <martin.weber@de.clara.net>"
+LABEL version "0.1.1"
 
-WORKDIR /
-COPY --from=builder /go/src/graylog-exporter/graylog-exporter .
+COPY --from=builder /go/src/graylog-exporter/graylog-exporter /usr/local/bin/graylog-exporter
+
+ENTRYPOINT ["/usr/local/bin/graylog-exporter"]
 EXPOSE 9404
-ENTRYPOINT ["/graylog-exporter"]
